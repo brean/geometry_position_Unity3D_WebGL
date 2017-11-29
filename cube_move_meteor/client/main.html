@@ -1,0 +1,26 @@
+<head>
+  <meta charset="UTF-8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>move gemometric figures</title>
+
+    <script type="text/javascript" src="/libs/threejs/three.min.js"></script>
+    <script type="text/javascript" src="/libs/threejs/TransformControls.js"></script>
+    <script type="text/javascript" src="/libs/threejs/inflate.min.js"></script>
+    <script type="text/javascript" src="/libs/threejs/Detector.js"></script>
+    <script type="text/javascript" src="/libs/threejs/OrbitControls.js"></script>
+
+</head>
+
+<body>
+  {{> visualization}}
+</body>
+
+<template name="visualization">
+  <div>
+    <div id="buttons">
+      <button>Add Cube</button>
+    </div>
+    <div id="container"></div>
+  </div>
+</template>
