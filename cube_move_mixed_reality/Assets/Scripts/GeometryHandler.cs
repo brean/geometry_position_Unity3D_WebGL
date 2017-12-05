@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GeometryCreation : MonoBehaviour {
+public class GeometryHandler : MonoBehaviour {
     public Communication com;
 
     public string type;
@@ -21,6 +21,7 @@ public class GeometryCreation : MonoBehaviour {
     private void Start()
     {
         com.geometry.OnItemAddedEvent.AddListener(OnGeometryAdded);
+        com.geometry.OnItemChangedEvent.AddListener(OnGeometryUpdated);
     }
 
     private void Update()
@@ -31,7 +32,7 @@ public class GeometryCreation : MonoBehaviour {
         {
             data = createGeom.Dequeue();
             obj = Instantiate(prefab);
-            geometries[data._id] = obj;
+            geometries.Add(data._id, obj);
             UpdateGeometryPosition(data.item, obj);
         }
 

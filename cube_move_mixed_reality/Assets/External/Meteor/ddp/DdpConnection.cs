@@ -439,7 +439,7 @@ namespace Meteor.ddp {
 
         private void MessageReceived(MessageWebSocket sender, MessageWebSocketMessageReceivedEventArgs args) {
             using (DataReader reader = args.GetDataReader()) {
-                reader.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
+                reader.UnicodeEncoding = UnicodeEncoding.Utf8;
                 string read = reader.ReadString(reader.UnconsumedBufferLength);
                 if (logMessages) Debug.Log("RECEIVED: " + read);
                 HandleMessages(JsonObject.Parse(read));

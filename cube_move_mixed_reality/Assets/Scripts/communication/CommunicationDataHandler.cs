@@ -17,7 +17,6 @@ public class MeteorData<T>
 
 public class CommunicationDataHandler<T>
 {
-    public Dictionary<string, T> data = new Dictionary<string, T>();
     public string path;
 
 
@@ -34,15 +33,6 @@ public class CommunicationDataHandler<T>
 
     public T Add(string id, T item)
     {
-        if (data.ContainsKey(id))
-        {
-            data[id] = item;
-        }
-        else
-        {
-            data.Add(id, item);
-        }
-
         MeteorData<T> meteorItem = new MeteorData<T>
         {
             item = item,
@@ -60,18 +50,6 @@ public class CommunicationDataHandler<T>
 
     public T Changed(string id, T item)
     {
-        if (data.ContainsKey(id))
-        {
-            // FIXME: item is only a delta, do not overwrite!
-            // TODO: use REFLECTION!
-            
-            data[id] = item;
-        }
-        else
-        {
-            data.Add(id, item);
-        }
-
         MeteorData<T> meteorItem = new MeteorData<T>
         {
             item = item,
@@ -84,7 +62,7 @@ public class CommunicationDataHandler<T>
     public T Changed(string id, string json)
     {
         T temp = JsonUtility.FromJson<T>(json);
-        return Add(id, temp);
+        return Changed(id, temp);
     }
 
     /**
@@ -92,16 +70,10 @@ public class CommunicationDataHandler<T>
      */
     public void LoadFile()
     {
-        data.Clear();
         TextAsset[] assetTexts = Resources.LoadAll<TextAsset>("data/" + path);
         for (int i = 0; i < assetTexts.Length; i++)
         {
             Add(i.ToString(), assetTexts[i].text);
         }
-    }
-
-    public void Clear()
-    {
-        data.Clear();
     }
 }

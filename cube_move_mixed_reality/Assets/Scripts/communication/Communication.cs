@@ -26,8 +26,8 @@ public class Communication : MonoBehaviour {
 
     public void Connect()
     {
-        Debug.Log("connecting to " + serverUrl);
 #if WINDOWS_UWP
+        Debug.Log("connecting to " + serverUrl);
         ddpConnection = new DdpConnection(serverUrl);
         ddpConnection.OnConnected += (DdpConnection connection) => {
             Debug.Log("WEBSOCKET Connected.");
@@ -66,14 +66,14 @@ public class Communication : MonoBehaviour {
     private void DdpConnection_OnChanged(string collection, string docId, JsonObject fields) {
         if (collection.Equals("geometry"))
         {
-            Geometry g = geometry.Add(docId, fields.Stringify());
+            Geometry g = geometry.Changed(docId, fields.Stringify());
         }
         Debug.Log("changed " + docId + " - " + collection + " - " + fields.ToString());
     }
 
     private void DdpConnection_OnAdded(string collection, string docId, JsonObject fields) {
         if (collection.Equals("geometry")) {
-            Geometry g = geometry.Changed(docId, fields.Stringify());
+            Geometry g = geometry.Add(docId, fields.Stringify());
         }
         Debug.Log("added " + docId + " - " + collection);
     }
