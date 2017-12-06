@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using Newtonsoft.Json;
 
 [System.Serializable]
 public class MeteorData<T>
@@ -44,7 +45,7 @@ public class CommunicationDataHandler<T>
 
     public T Add(string id, string json)
     {
-        T temp = JsonUtility.FromJson<T>(json);
+        T temp = JsonConvert.DeserializeObject<T>(json, Converter.Settings);
         return Add(id, temp);
     }
 
@@ -61,7 +62,7 @@ public class CommunicationDataHandler<T>
 
     public T Changed(string id, string json)
     {
-        T temp = JsonUtility.FromJson<T>(json);
+        T temp = JsonConvert.DeserializeObject<T>(json, Converter.Settings);
         return Changed(id, temp);
     }
 
