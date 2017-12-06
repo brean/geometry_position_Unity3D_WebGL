@@ -46,9 +46,9 @@ public class GeometryHandler : MonoBehaviour {
     public void UpdateGeometryPosition(Geometry geom, GameObject obj)
     {
         obj.transform.position = new Vector3(
-            geom.position[0],
-            geom.position[1],
-            geom.position[2]);
+            geom.Position[0],
+            geom.Position[1],
+            geom.Position[2]);
     }
 
     public void OnGeometryUpdated(MeteorData<Geometry> data)
