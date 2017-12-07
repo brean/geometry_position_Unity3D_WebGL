@@ -23,24 +23,21 @@
 	SOFTWARE.
 */
 
-
-#if WINDOWS_UWP
 using System;
 using System.Collections;
-using Windows.Data.Json;
 
 namespace Meteor.ddp {
 
-	public class MethodCall {
+    public class MethodCall {
 
 		public string id;
 		public string methodName;
-		public JsonValue[] items;
+		public object[] items; // parameters
 
 		public bool hasUpdated;
 		public Action<MethodCall> OnUpdated;
 
-		public JsonObject result;
+		public object result;
 		public bool hasResult;
 		public Action<MethodCall> OnResult;
 
@@ -54,7 +51,6 @@ namespace Meteor.ddp {
 			yield break;
 		}
 
-	}
+    }
 
 }
-#endif

@@ -23,14 +23,12 @@
 	SOFTWARE.
 */
 
-#if WINDOWS_UWP
 using System;
 using System.Collections;
 using System.Collections.Generic;
+#if UNITY_5_4_OR_NEWER
 using UnityEngine; // for Debug.Log
-using Windows.Data.Json;
-using Windows.Networking.Sockets;
-using Windows.Storage.Streams;
+#endif
 using System.Threading.Tasks;
 
 namespace Meteor.ddp {
@@ -110,10 +108,10 @@ namespace Meteor.ddp {
         public delegate void OnConnectedDelegate(DdpConnection connection);
         public delegate void OnDisconnectedDelegate(DdpConnection connection);
         public delegate void OnConnectionClosedDelegate(DdpConnection connection);
-        public delegate void OnAddedDelegate(string collection, string docId, JsonObject fields);
-        public delegate void OnChangedDelegate(string collection, string docId, JsonObject fields);
+        public delegate void OnAddedDelegate(string collection, string docId, string json);
+        public delegate void OnChangedDelegate(string collection, string docId, string json);
         public delegate void OnRemovedDelegate(string collection, string docId);
-        public delegate void OnAddedBeforeDelegate(string collection, string docId, JsonObject fields, string before);
+        public delegate void OnAddedBeforeDelegate(string collection, string docId, object fields, string before);
         public delegate void OnMovedBeforeDelegate(string collection, string docId, string before);
         public delegate void OnErrorDelegate(DdpError error);
 
@@ -136,14 +134,18 @@ namespace Meteor.ddp {
 
         private bool logMessages = true;
 
-        // WebSocket provided by UWP framework
-        private MessageWebSocket messageWebSocket;
-        private DataWriter messageWriter;
+        // WebSocket provided by UWP framework or System.Net
+        private WebSocketConnection con;
 
         private Uri uri;
 
         public DdpConnection(string url) {
             uri = new Uri(url);
+#if WINDOWS_UWP
+            con = new WebSocketUWP(this);
+#else
+            con = new WebSocketSystemNet(this);
+#endif
         }
 
         // run StartConnect async
@@ -152,12 +154,7 @@ namespace Meteor.ddp {
         }
 
         private async void StartConnect() {
-            messageWebSocket = new MessageWebSocket();
-            messageWebSocket.Control.MessageType = SocketMessageType.Utf8;
-            messageWebSocket.MessageReceived += MessageReceived;
-            messageWebSocket.Closed += Closed;
-            await messageWebSocket.ConnectAsync(uri);
-            messageWriter = new DataWriter(messageWebSocket.OutputStream);
+            await con.Connect(uri);
             Send(GetConnectMessage());
         }
 
@@ -171,126 +168,102 @@ namespace Meteor.ddp {
             }
         }
 
-        private void HandleMessages(JsonObject message) {
-            if (!message.ContainsKey(Field.MSG)) {
+        public void HandleMessages(string json) {
+#if UNITY_5_4_OR_NEWER
+            if (logMessages)
+            {
+                Debug.Log("RECEIVED: " + json);
+            }
+#endif
+            ReceivedData data = ReceivedData.FromJson(json);
+            if (data.Msg == null) {
                 // silently ignore messages that don't have the MSG-key
                 return;
             }
-            string msg = message.GetNamedValue(Field.MSG).GetString();
+            string msg = (string)data.Msg;
             switch (msg) {
                 case MessageType.CONNECTED: {
-                    sessionId = message.GetNamedValue(Field.SESSION).GetString();
+                    sessionId = data.Session;
                     ddpConnectionState = ConnectionState.CONNECTED;
                     OnConnectedFirst();
-                    if (OnConnected != null) {
-                        OnConnected(this);
-                    }
+                    OnConnected?.Invoke(this);
                     break;
                 }
                 case MessageType.FAILED: {
-                    if (OnError != null) {
-                        OnError(new DdpError() {
-                            errorCode = "Connection refused",
-                            reason = "The server is using an unsupported DDP protocol version: " +
-                                message.GetNamedValue(Field.VERSION).GetString()
-                        });
-                    }
+                    OnError?.Invoke(new DdpError() {
+                        errorCode = "Connection refused",
+                        reason = "The server is using an unsupported DDP protocol version: " +
+                            data.Version
+                    });
                     //Dispose();
                     break;
                 }
                 case MessageType.PING: {
-                    if (message.ContainsKey(Field.ID)) {
-                        Send(GetPongMessage(message.GetNamedValue(Field.ID).GetString()));
-                    } else {
+                    if (data.Id == null) {
                         Send(GetPongMessage());
+                    } else {
+                        Send(GetPongMessage(data.Id));
                     }
                     break;
                 }
 
                 case MessageType.NOSUB: {
-                    string subscriptionId = message.GetNamedValue(Field.ID).GetString();
+                    string subscriptionId = data.Id;
                     subscriptions.Remove(subscriptionId);
 
-                    if (message.ContainsKey(Field.ERROR)) {
-                        if (OnError != null) {
-                            OnError(GetError(message.GetNamedValue(Field.ID).GetObject()));
-                        }
+                    if (data.Error != null && OnError != null) {
+                        OnError(GetError(data.Error));
                     }
                     break;
                 }
                 case MessageType.ADDED: {
-                    if (OnAdded != null) {
-                        OnAdded(
-                            message.GetNamedValue(Field.COLLECTION).GetString(),
-                            message.GetNamedValue(Field.ID).GetString(),
-                            message.GetNamedValue(Field.FIELDS).GetObject());
-                    }
+                    OnAdded?.Invoke(data.Collection, data.Id, data.Fields.ToString());
                     break;
                 }
                 case MessageType.CHANGED: {
-                    if (OnChanged != null) {
-                        OnChanged(
-                            message.GetNamedValue(Field.COLLECTION).GetString(),
-                            message.GetNamedValue(Field.ID).GetString(),
-                            message.GetNamedValue(Field.FIELDS).GetObject());
-                    }
+                    OnChanged?.Invoke(data.Collection, data.Id, data.Fields.ToString());
                     break;
                 }
-
                 case MessageType.REMOVED: {
-                    if (OnRemoved != null) {
-                        OnRemoved(
-                            message.GetNamedValue(Field.COLLECTION).GetString(),
-                            message.GetNamedValue(Field.ID).GetString());
-                    }
+                    OnRemoved?.Invoke(data.Collection, data.Id);
                     break;
                 }
 
                 case MessageType.READY: {
-                    JsonArray subscriptionIds = message.GetNamedArray(Field.SUBS);
-
-                    foreach (var item in subscriptionIds) {
-                        string subscriptionId = item.GetString();
-                        Subscription subscription = subscriptions[subscriptionId];
-                        if (subscription != null) {
-                            subscription.isReady = true;
-                            if (subscription.OnReady != null) {
-                                subscription.OnReady(subscription);
-                            }
+                    foreach (string subscriptionId in data.Subs) {
+                        if (!subscriptions.ContainsKey(subscriptionId))
+                        {
+                            continue;
                         }
+                        Subscription subscription = subscriptions[subscriptionId];
+                        if (subscription == null)
+                        {
+                            continue;
+                        }
+                        subscription.isReady = true;
+                        subscription.OnReady?.Invoke(subscription);
                     }
                     break;
                 }
 
                 case MessageType.ADDED_BEFORE: {
-                    if (OnAddedBefore != null) {
-                        OnAddedBefore(
-                            message.GetNamedValue(Field.COLLECTION).GetString(),
-                            message.GetNamedValue(Field.ID).GetString(),
-                            message.GetNamedValue(Field.FIELDS).GetObject(),
-                            message.GetNamedValue(Field.BEFORE).GetString());
-                    }
+                    OnAddedBefore?.Invoke(data.Collection, data.Id, data.Fields, data.Before);
                     break;
                 }
 
                 case MessageType.MOVED_BEFORE: {
-                    if (OnMovedBefore != null) {
-                        OnMovedBefore(
-                            message.GetNamedValue(Field.COLLECTION).GetString(),
-                            message.GetNamedValue(Field.ID).GetString(),
-                            message.GetNamedValue(Field.BEFORE).GetString());
-                    }
+                    OnMovedBefore?.Invoke(data.Collection, data.Id, data.Before);
                     break;
                 }
 
                 case MessageType.RESULT: {
-                    string methodCallId = message.GetNamedValue(Field.ID).GetString();
+                    string methodCallId = data.Id;
                     MethodCall methodCall = methodCalls[methodCallId];
                     if (methodCall != null) {
-                        if (message.ContainsKey(Field.ERROR)) {
-                            methodCall.error = GetError(message.GetNamedValue(Field.ERROR).GetObject());
+                        if (data.Error != null) {
+                            methodCall.error = GetError(data.Error);
                         }
-                        methodCall.result = message.GetNamedValue(Field.RESULT).GetObject();
+                        methodCall.result = data.Result;
                         if (methodCall.hasUpdated) {
                             methodCalls.Remove(methodCallId);
                         }
@@ -303,131 +276,99 @@ namespace Meteor.ddp {
                 }
 
                 case MessageType.UPDATED: {
-                    JsonArray methodCallIds = message.GetNamedArray(Field.METHODS);
-
-                    foreach (var item in methodCallIds) {
-                        string methodCallId = item.GetString();
+                    foreach (string methodCallId in data.Methods) {
                         MethodCall methodCall = methodCalls[methodCallId];
                         if (methodCall != null) {
                             if (methodCall.hasResult) {
                                 methodCalls.Remove(methodCallId);
                             }
                             methodCall.hasUpdated = true;
-                            if (methodCall.OnUpdated != null) {
-                                methodCall.OnUpdated(methodCall);
-                            }
+                            methodCall.OnUpdated?.Invoke(methodCall);
                         }
                     }
                     break;
                 }
 
                 case MessageType.ERROR: {
-                    if (OnError != null) {
-                        OnError(GetError(message));
-                    }
+                    OnError?.Invoke(GetError(data.Error));
                     break;
                 }
             }
         }
 
         private string GetConnectMessage() {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.CONNECT));
-            if (sessionId != null) {
-                message.SetNamedValue(Field.SESSION, JsonValue.CreateStringValue(sessionId));
+            ConnectMessage msg = new ConnectMessage();
+            msg.Msg = MessageType.CONNECT;
+            if (sessionId != null)
+            {
+                msg.Session = sessionId;
             }
-            message.SetNamedValue(Field.VERSION, JsonValue.CreateStringValue(DDP_PROTOCOL_VERSION));
+            msg.Version = DDP_PROTOCOL_VERSION;
+            msg.Support = new string[] { DDP_PROTOCOL_VERSION };
 
-            JsonArray supportedVersions = new JsonArray();
-            supportedVersions.Add(JsonValue.CreateStringValue(DDP_PROTOCOL_VERSION));
-            //supportedVersions.Add(JsonValue.CreateStringValue("pre2"));
-            //supportedVersions.Add(JsonValue.CreateStringValue("pre1"));
-            message.SetNamedValue(Field.SUPPORT, supportedVersions);
-
-            return message.Stringify();
+            return msg.ToJson();
         }
 
         private string GetPongMessage() {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.PONG));
-
-            return message.Stringify();
+            PongMessage msg = new PongMessage();
+            msg.Msg = MessageType.PONG;
+            return msg.ToJson();
         }
         
         private string GetPongMessage(string id) {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.PONG));
-            message.SetNamedValue(Field.ID, JsonValue.CreateStringValue(id));
-
-            return message.Stringify();
+            PongMessage msg = new PongMessage();
+            msg.Msg = MessageType.PONG;
+            msg.Id = id;
+            return msg.ToJson();
         }
 
         private string GetSubscriptionMessage(Subscription subscription) {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.SUB));
-            message.SetNamedValue(Field.ID, JsonValue.CreateStringValue(subscription.id));
-            message.SetNamedValue(Field.NAME, JsonValue.CreateStringValue(subscription.name));
-            
-            JsonArray prms = new JsonArray();
-            foreach(JsonValue item in subscription.items) {
-                prms.Add(item);
-            }
-            message.SetNamedValue(Field.PARAMS, prms);
-
-            return message.Stringify();
+            SubscriptionMessage msg = new SubscriptionMessage();
+            msg.Msg = MessageType.SUB;
+            msg.Id = subscription.id;
+            msg.Name = subscription.name;
+            msg.Params = subscription.items;
+            return msg.ToJson();
         }
         
         private string GetUnsubscriptionMessage(Subscription subscription) {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.UNSUB));
-            message.SetNamedValue(Field.ID, JsonValue.CreateStringValue(subscription.id));
-
-            return message.Stringify();
+            SubscriptionMessage msg = new SubscriptionMessage();
+            msg.Msg = MessageType.UNSUB;
+            msg.Id = subscription.id;
+            return msg.ToJson();
         }
 
         private string GetMethodCallMessage(MethodCall methodCall) {
-            JsonObject message = new JsonObject();
-            message.SetNamedValue(Field.MSG, JsonValue.CreateStringValue(MessageType.METHOD));
-            message.SetNamedValue(Field.METHOD, JsonValue.CreateStringValue(methodCall.methodName));
-
-            JsonArray prms = new JsonArray();
-            foreach(JsonValue item in methodCall.items) {
-                prms.Add(item);
-            }
-            message.SetNamedValue(Field.PARAMS, prms);
-
-            message.SetNamedValue(Field.ID, JsonValue.CreateStringValue(methodCall.id));
-            //message.SetNamedValue(Field.RANDOM_SEED, xxx);
-
-            return message.Stringify();
+            MethodCallMessage mcm = new MethodCallMessage();
+            mcm.Msg = MessageType.METHOD;
+            mcm.Method = methodCall.methodName;
+            mcm.Id = methodCall.id;
+            mcm.Params = methodCall.items;
+            return mcm.ToJson();
         }
 
-        private DdpError GetError(JsonObject obj) {
-            string errorCode = null;
-            if (obj.ContainsKey(Field.ERROR)) {
-                errorCode = obj.GetNamedValue(Field.ERROR).GetString();
-            }
-
+        private DdpError GetError(ReceivedDataError err) {
             return new DdpError() {
-                errorCode = errorCode,
-                reason = obj.GetNamedValue(Field.REASON).GetString(),
-                message = obj.ContainsKey(Field.MESSAGE) ? obj.GetNamedValue(Field.MESSAGE).GetString() : "",
-                errorType = obj.ContainsKey(Field.ERROR_TYPE) ? obj.GetNamedValue(Field.ERROR_TYPE).GetString() : "",
-                offendingMessage = obj.ContainsKey(Field.OFFENDING_MESSAGE) ? obj.GetNamedValue(Field.OFFENDING_MESSAGE).GetString() : ""
+                errorCode = err.Error,
+                reason = err.Reason,
+                message = err.Message ?? "",
+                errorType = err.ErrorType ?? "",
+                offendingMessage = err.OffendingMessage ?? ""
             };
         }
 
 
 
         private async void Send(string message) {
+#if UNITY_5_4_OR_NEWER
             if (logMessages) {
                 Debug.Log("Send: " + message);
             }
-            messageWriter.WriteString(message);
-            await messageWriter.StoreAsync();
+            await con.Send(message);
+#endif
         }
 
-        private void Closed(IWebSocket webSocket,  WebSocketClosedEventArgs args) {
+        public void Closed() {
             ddpConnectionState = ConnectionState.CLOSED;
             sessionId = null;
 			subscriptions.Clear();
@@ -437,25 +378,14 @@ namespace Meteor.ddp {
             }
         }
 
-        private void MessageReceived(MessageWebSocket sender, MessageWebSocketMessageReceivedEventArgs args) {
-            using (DataReader reader = args.GetDataReader()) {
-                reader.UnicodeEncoding = UnicodeEncoding.Utf8;
-                string read = reader.ReadString(reader.UnconsumedBufferLength);
-                if (logMessages) Debug.Log("RECEIVED: " + read);
-                HandleMessages(JsonObject.Parse(read));
-            }
-        }
-
-        public Subscription Subscribe(string name, params JsonValue[] items) {
+        public Subscription Subscribe(string name, params object[] items) {
             Subscription subscription = new Subscription() {
                 id = "" + subscriptionId++,
                 name = name,
                 items = items
             };
             subscriptions[subscription.id] = subscription;
-            if (messageWriter != null) {
-                Send(GetSubscriptionMessage(subscription));
-            }
+            Send(GetSubscriptionMessage(subscription));
             return subscription;
         }
 
@@ -463,25 +393,22 @@ namespace Meteor.ddp {
             Send(GetUnsubscriptionMessage(subscription));
         }
 
-        public MethodCall Call(string methodName, params JsonValue[] items) {
+        public MethodCall Call(string methodName, params object[] items) {
             MethodCall methodCall = new MethodCall() {
                 id = "" + methodCallId++,
                 methodName = methodName,
                 items = items
             };
             methodCalls[methodCall.id] = methodCall;
-            if (messageWriter != null) {
-                Send(GetMethodCallMessage(methodCall));
-            }
+            Send(GetMethodCallMessage(methodCall));
             return methodCall;
         }
 
         public void Dispose() {
             if (ddpConnectionState == ConnectionState.CONNECTED) {
                 ddpConnectionState = ConnectionState.CLOSING;
-                messageWebSocket.Dispose();
+                con.Dispose();
             }
         }
     }
 }
-#endif

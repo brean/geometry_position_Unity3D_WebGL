@@ -12,6 +12,13 @@ using Newtonsoft.Json;
 
 public partial class Geometry
 {
+    public Geometry(string Type, float[] Position, float[] Rotation)
+    {
+        this.Type = Type;
+        this.Position = Position;
+        this.Rotation = Rotation;
+    }
+
     [JsonProperty("position")]
     public float[] Position { get; set; }
 
@@ -20,6 +27,13 @@ public partial class Geometry
 
     [JsonProperty("type")]
     public string Type { get; set; }
+}
+
+public partial class Geometry
+{
+    public static Geometry FromObject(dynamic data) {
+        return new Geometry(data.type, data.position, data.rotation);
+    }
 }
 
 public partial class Geometry
@@ -36,6 +50,7 @@ public class Converter
 {
     public static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
     {
+        NullValueHandling = NullValueHandling.Ignore,
         MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
         DateParseHandling = DateParseHandling.None,
     };

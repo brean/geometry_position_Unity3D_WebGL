@@ -24,18 +24,15 @@
 */
 
 
-#if WINDOWS_UWP
 using System;
 using System.Collections;
-using Windows.Data.Json;
 
 namespace Meteor.ddp {
 	public class Subscription {
 		public string id;
 		public string name;
-		public JsonValue[] items;
+		public object[] items; // function parameters
 		public bool isReady;
 		public Action<Subscription> OnReady;
 	}
 }
-#endif

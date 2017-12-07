@@ -1,23 +1,13 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using System;
-using System.Threading;
-using System.IO;
-using UnityEngine.Events;
-#if WINDOWS_UWP
-using Windows.Data.Json;
+﻿using UnityEngine;
 using Meteor.ddp;
-#endif
+
 
 public class Communication : MonoBehaviour {
     public CommunicationDataHandler<Geometry> geometry = new CommunicationDataHandler<Geometry>("geom");
 
     public string serverUrl = "ws://localhost:3000/websocket";
 
-#if WINDOWS_UWP
     private DdpConnection ddpConnection;
-#endif
 
     // Use this for initialization
     void Start () {
@@ -26,11 +16,10 @@ public class Communication : MonoBehaviour {
 
     public void Connect()
     {
-#if WINDOWS_UWP
         Debug.Log("connecting to " + serverUrl);
         ddpConnection = new DdpConnection(serverUrl);
         ddpConnection.OnConnected += (DdpConnection connection) => {
-            Debug.Log("WEBSOCKET Connected.");
+            ddpConnection.Subscribe("geometry");
         };
         ddpConnection.OnError += DdpConnection_OnError;
         ddpConnection.OnDisconnected += DdpConnection_OnDisconnected;
@@ -41,12 +30,8 @@ public class Communication : MonoBehaviour {
         ddpConnection.OnRemoved += DdpConnection_OnRemoved;
 
         ddpConnection.Connect();
-
-        ddpConnection.Subscribe("geometry");
-#endif
     }
-
-#if WINDOWS_UWP
+    
     private void DdpConnection_OnConnectionClosed(DdpConnection connection) {
         Debug.Log("CONNECTION CLOSED");
     }
@@ -63,19 +48,18 @@ public class Communication : MonoBehaviour {
         Debug.Log("ERROR " + error.message + " - " + error.reason);
     }
 
-    private void DdpConnection_OnChanged(string collection, string docId, JsonObject fields) {
+    private void DdpConnection_OnChanged(string collection, string docId, string json) {
         if (collection.Equals("geometry"))
         {
-            Geometry g = geometry.Changed(docId, fields.Stringify());
+            Geometry g = geometry.Changed(docId, Geometry.FromJson(json));
         }
-        Debug.Log("changed " + docId + " - " + collection + " - " + fields.ToString());
+        Debug.Log("changed " + docId + " - " + collection + " - " + json);
     }
 
-    private void DdpConnection_OnAdded(string collection, string docId, JsonObject fields) {
+    private void DdpConnection_OnAdded(string collection, string docId, string json) {
         if (collection.Equals("geometry")) {
-            Geometry g = geometry.Add(docId, fields.Stringify());
+            Geometry g = geometry.Add(docId, Geometry.FromJson(json));
         }
         Debug.Log("added " + docId + " - " + collection);
     }
-#endif
 }
