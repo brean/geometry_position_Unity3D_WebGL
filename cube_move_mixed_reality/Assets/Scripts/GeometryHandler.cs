@@ -1,69 +1,96 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Moulin.DDP;
 
 public class GeometryHandler : MonoBehaviour {
     public Communication com;
 
-    public string type;
+    [Tooltip("Type of geometry (e.g. 'cube')")]
+    public string Type;
 
+    [Tooltip("Prefab for geometry")]
     public GameObject prefab;
 
-    private Dictionary<string, GameObject> geometries = new Dictionary<string, GameObject>();
+    private JsonObjectCollection geometryCollection;
+
+    // all known geometry
+    Dictionary<string, GameObject> geometries = new Dictionary<string, GameObject>();
 
     // note that GameObject creation and manipulation needs to be called from the main thread, so we
     // fill lists and do the heavy-lifting in the update function
-    private Queue<MeteorData<Geometry>> createGeom = new Queue<MeteorData<Geometry>>();
-    private Queue<MeteorData<Geometry>> updateGeom = new Queue<MeteorData<Geometry>>();
-
-    private object _queueLock = new object();
+    private Queue<KeyValuePair<string, JSONObject>> createGeom = new Queue<KeyValuePair<string, JSONObject>>();
+    private Queue<KeyValuePair<string, JSONObject>> updateGeom = new Queue<KeyValuePair<string, JSONObject>>();
 
     private void Start()
     {
-        com.geometry.OnItemAddedEvent.AddListener(OnGeometryAdded);
-        com.geometry.OnItemChangedEvent.AddListener(OnGeometryUpdated);
+        geometryCollection = com.GetCollection("geometry");
+        if (geometryCollection == null)
+        {
+            com.OnDBStart.AddListener(() => {
+                geometryCollection = com.GetCollection("geometry");
+                SetupGeometryCollection();
+            });
+        }
+        else
+        {
+            SetupGeometryCollection();
+        }
+
+    }
+
+    private void SetupGeometryCollection()
+    {
+        lock (createGeom)
+        {
+            geometryCollection.OnAdded += (id, fields) =>
+            {
+                if (!fields.HasField("type")) return;
+                string GeomType = fields.GetField("type").str;
+                if (GeomType != Type) return;
+                createGeom.Enqueue(new KeyValuePair<string, JSONObject>(id, fields));
+            };
+        }
+        lock (updateGeom) {
+            geometryCollection.OnChanged += (id, fields, cleared) =>
+            {
+                Debug.Log("Change " + id + " - " + fields);
+                updateGeom.Enqueue(new KeyValuePair<string, JSONObject>(id, fields));
+            };
+        }
     }
 
     private void Update()
     {
-        MeteorData<Geometry> data;
+        KeyValuePair<string, JSONObject> data;
         GameObject obj;
-        while (createGeom.Count > 0)
+        
+        lock (createGeom)
         {
-            data = createGeom.Dequeue();
-            obj = Instantiate(prefab);
-            geometries.Add(data._id, obj);
-            UpdateGeometryPosition(data.item, obj);
+            while (createGeom.Count > 0)
+            {
+                data = createGeom.Dequeue();
+                obj = Instantiate(prefab);
+                geometries.Add(data.Key, obj);
+                UpdateGeometryPosition(data.Value.GetField("position"), obj);
+            }
         }
-
-        while (updateGeom.Count > 0)
-        {
-            data = updateGeom.Dequeue();
-            UpdateGeometryPosition(data.item, geometries[data._id]);
+        lock (updateGeom) { 
+            while (updateGeom.Count > 0)
+            {
+                data = updateGeom.Dequeue();
+                if (!geometries.ContainsKey(data.Key)) return;
+                UpdateGeometryPosition(data.Value.GetField("position"), geometries[data.Key]);
+            }
         }
     }
 
-    public void UpdateGeometryPosition(Geometry geom, GameObject obj)
+    public void UpdateGeometryPosition(JSONObject position, GameObject obj)
     {
+        if (position == null) return;
         obj.transform.position = new Vector3(
-            geom.Position[0],
-            geom.Position[1],
-            geom.Position[2]);
-    }
-
-    public void OnGeometryUpdated(MeteorData<Geometry> data)
-    {
-        lock (_queueLock)
-        {
-            updateGeom.Enqueue(data);
-        }
-    }
-
-	public void OnGeometryAdded(MeteorData<Geometry> data)
-    {
-        lock (_queueLock)
-        {
-            createGeom.Enqueue(data);
-        }
+            position[0].f,
+            position[1].f,
+            position[2].f);
     }
 }

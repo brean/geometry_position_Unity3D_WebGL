@@ -1,65 +1,54 @@
 ﻿using UnityEngine;
-using Meteor.ddp;
-
+using Moulin.DDP;
+using UnityEngine.Events;
 
 public class Communication : MonoBehaviour {
-    public CommunicationDataHandler<Geometry> geometry = new CommunicationDataHandler<Geometry>("geom");
-
     public string serverUrl = "ws://localhost:3000/websocket";
+    public UnityEvent OnDBStart;
 
     private DdpConnection ddpConnection;
 
-    // Use this for initialization
-    void Start () {
+    private LocalDB localDB;
+    
+    private void Start () {
         Connect();
 	}
+
+    public JsonObjectCollection GetCollection(string name)
+    {
+        if (localDB == null) return null;
+        return (JsonObjectCollection)localDB.GetCollection(name);
+    }
+
+    public void SetupDB() {
+        localDB = new LocalDB((db, collectionName) => {
+            return new JsonObjectCollection(db, collectionName);
+        }, ddpConnection);
+        OnDBStart.Invoke();
+    }
 
     public void Connect()
     {
         Debug.Log("connecting to " + serverUrl);
         ddpConnection = new DdpConnection(serverUrl);
-        ddpConnection.OnConnected += (DdpConnection connection) => {
-            ddpConnection.Subscribe("geometry");
+        ddpConnection.OnDebugMessage += (string message) =>
+        {
+            Debug.Log(message);
         };
+        ddpConnection.OnConnected += (DdpConnection connection) => {
+            Debug.Log("connected!");
+            ddpConnection.Subscribe("cube");
+            ddpConnection.Subscribe("sphere");
+            ddpConnection.Subscribe("monkey");
+        };
+
         ddpConnection.OnError += DdpConnection_OnError;
-        ddpConnection.OnDisconnected += DdpConnection_OnDisconnected;
-        ddpConnection.OnConnectionClosed += DdpConnection_OnConnectionClosed;
-
-        ddpConnection.OnAdded += DdpConnection_OnAdded;
-        ddpConnection.OnChanged += DdpConnection_OnChanged;
-        ddpConnection.OnRemoved += DdpConnection_OnRemoved;
-
+        SetupDB();
         ddpConnection.Connect();
     }
     
-    private void DdpConnection_OnConnectionClosed(DdpConnection connection) {
-        Debug.Log("CONNECTION CLOSED");
-    }
-
-    private void DdpConnection_OnDisconnected(DdpConnection connection) {
-        Debug.Log("DISCONNECT");
-    }
-
-    private void DdpConnection_OnRemoved(string collection, string docId) {
-
-    }
-
     private void DdpConnection_OnError(DdpError error) {
         Debug.Log("ERROR " + error.message + " - " + error.reason);
     }
-
-    private void DdpConnection_OnChanged(string collection, string docId, string json) {
-        if (collection.Equals("geometry"))
-        {
-            Geometry g = geometry.Changed(docId, Geometry.FromJson(json));
-        }
-        Debug.Log("changed " + docId + " - " + collection + " - " + json);
-    }
-
-    private void DdpConnection_OnAdded(string collection, string docId, string json) {
-        if (collection.Equals("geometry")) {
-            Geometry g = geometry.Add(docId, Geometry.FromJson(json));
-        }
-        Debug.Log("added " + docId + " - " + collection);
-    }
+    
 }

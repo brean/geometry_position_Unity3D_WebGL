@@ -151,18 +151,17 @@ namespace Moulin.DDP
 			ws.OnMessage += OnWebSocketMessage;
         }
 
-        private async void OnWebSocketOpen()
+        public void OnWebSocketOpen()
         {
             OnDebugMessage?.Invoke("Websocket open");
-            await SendAsync(GetConnectMessage());
-
+            Send(GetConnectMessage());
             foreach (Subscription subscription in subscriptions.Values)
             {
-                await SendAsync(GetSubscriptionMessage(subscription));
+                Send(GetSubscriptionMessage(subscription));
             }
             foreach (MethodCall methodCall in methodCalls.Values)
             {
-                await SendAsync(GetMethodCallMessage(methodCall));
+                Send(GetMethodCallMessage(methodCall));
             }
         }
 
@@ -188,13 +187,14 @@ namespace Moulin.DDP
 		}
 
         // TODO: return Task instead of void
-		private async void OnWebSocketMessage(string data) {
-			if (logMessages) OnDebugMessage?.Invoke("OnMessage: " + data);
+		private void OnWebSocketMessage(string data) {
+            //if (logMessages) OnDebugMessage?.Invoke("OnMessage: " + data);
+            Debug.Log("received: " + data);
 			JSONObject message = new JSONObject(data);
-            await HandleMessage(message);
+            HandleMessage(message);
 		}
 
-		private async Task HandleMessage(JSONObject message) {
+		private void HandleMessage(JSONObject message) {
 			if (!message.HasField(Field.MSG)) {
 				// Silently ignore those messages.
 				return;
@@ -215,16 +215,16 @@ namespace Moulin.DDP
                         reason = "The server is using an unsupported DDP protocol version: " +
                         message[Field.VERSION]
                     });
-                    await CloseAsync();
+                    Close();
 					break;
 				}
 
 			    case MessageType.PING: {
 					if (message.HasField(Field.ID)) {
-						await SendAsync(GetPongMessage(message[Field.ID].str));
+						Send(GetPongMessage(message[Field.ID].str));
 					}
 					else {
-                        await SendAsync(GetPongMessage());
+                        Send(GetPongMessage());
 					}
 					break;
 				}
@@ -264,15 +264,20 @@ namespace Moulin.DDP
 			    }
 
 			    case MessageType.READY: {
-				    string[] subscriptionIds = ToStringArray(message[Field.SUBS]);
+                        lock (subscriptions)
+                        {
+                            string[] subscriptionIds = ToStringArray(message[Field.SUBS]);
 
-				    foreach (string subscriptionId in subscriptionIds) {
-					    Subscription subscription = subscriptions[subscriptionId];
-					    if (subscription != null) {
-						    subscription.isReady = true;
-                            subscription.OnReady?.Invoke(subscription);
+                            foreach (string subscriptionId in subscriptionIds)
+                            {
+                                Subscription subscription = subscriptions[subscriptionId];
+                                if (subscription != null)
+                                {
+                                    subscription.isReady = true;
+                                    subscription.OnReady?.Invoke(subscription);
+                                }
+                            }
                         }
-				    }
 				    break;
 			    }
 
@@ -420,7 +425,8 @@ namespace Moulin.DDP
 		}
 
         private async Task SendAsync(string message) {
-            if (logMessages) OnDebugMessage?.Invoke("Send: " + message);
+            Debug.Log("Send: " + message);
+            // if (logMessages) OnDebugMessage?.Invoke("Send: " + message);
             await ws.Send(message);
 		}
 
@@ -462,23 +468,36 @@ namespace Moulin.DDP
 		}
 
         // send message without waiting for its result
-        async void Send(string message)
+        void Send(string message)
         {
-            await SendAsync(message);
+            Task t = SendAsync(message);
+            t.Wait();
         }
 
 		public Subscription Subscribe(string name, params JSONObject[] items) {
-			Subscription subscription = new Subscription() {
-				id = "" + subscriptionId++,
-				name = name,
-				items = items
-			};
-			subscriptions[subscription.id] = subscription;
-            Send(GetSubscriptionMessage(subscription));
-			return subscription;
+            Task<Subscription> sub = SubscribeAsync(name, items);
+            // wait until message has been send
+            sub.Wait();
+            return sub.Result;
 		}
 
-		public void Unsubscribe(Subscription subscription) {
+        public async Task<Subscription> SubscribeAsync(string name, params JSONObject[] items)
+        {
+            Subscription subscription = new Subscription()
+            {
+                id = "" + subscriptionId++,
+                name = name,
+                items = items
+            };
+            lock (subscriptions)
+            {
+                subscriptions[subscription.id] = subscription;
+            }
+            await SendAsync(GetSubscriptionMessage(subscription));
+            return subscription;
+        }
+
+        public void Unsubscribe(Subscription subscription) {
 			Send(GetUnsubscriptionMessage(subscription));
 		}
 
