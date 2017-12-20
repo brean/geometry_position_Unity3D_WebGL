@@ -15,14 +15,15 @@ function onPositionChange(event) {
 }
 
 Template.visualization.onRendered(function() {
+  let vis = new Visualization();
   $(window).resize(
     function() {
     setTimeout(function() {
-      $('canvas').height($('html').height());
-      $('canvas').width($('html').width());
+      $('canvas').height($( window ).height());
+      $('canvas').width($( window ).width());
+      vis.onWindowResize();
     }, 250);
   });
-  let vis = new Visualization();
   vis.addEventListener('positionChange', onPositionChange.bind(vis));
   let geometry = Geometry.find({});
   geometry.observeChanges({

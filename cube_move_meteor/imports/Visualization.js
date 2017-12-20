@@ -45,7 +45,8 @@ class Visualization extends THREE.EventDispatcher {
   }
 
   onWindowResize() {
-    if (!this.renderer || !this.scene || this.camera) {
+    if (!this.renderer || !this.scene || !this.camera) {
+      console.warn("can not resize, three.js not ready");
       return;
     }
     this.camera.aspect = window.innerWidth / window.innerHeight;
