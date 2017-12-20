@@ -10,6 +10,9 @@
     <script type="text/javascript" src="/libs/threejs/Detector.js"></script>
     <script type="text/javascript" src="/libs/threejs/OrbitControls.js"></script>
 
+    <script type="text/javascript" src="/libs/threejs/OBJLoader.js"></script>
+    <script type="text/javascript" src="/libs/threejs/MTLLoader.js"></script>
+    <script type="text/javascript" src="/libs/threejs/FBXLoader.js"></script>
 </head>
 
 <body>
@@ -19,7 +22,9 @@
 <template name="visualization">
   <div>
     <div id="buttons">
-      <button>Add Cube</button>
+      <button id="cube">Add Cube</button>
+      <button id="sphere">Add Sphere</button>
+      <button id="monkey">Add Monkey</button>
     </div>
     <div id="container"></div>
   </div>

@@ -2,13 +2,13 @@ import { Meteor } from 'meteor/meteor';
 import { Geometry } from './geometry';
 
 Meteor.methods({
-  'geometry.add': function(type, position, rotation) {
+  'geometry.add': function(type='cube', position=[0, 0, 0], rotation=[0, 0, 0]) {
     // todo: merge with responded/response_to?
     Geometry.insert({
       created: new Date(),
-      type: type || "cube",
-      position: position || [0, 0, 0],
-      rotation: rotation || [0, 0, 0]
+      type: type,
+      position: position,
+      rotation: rotation
     });
   },
   'geometry.deleteAll': function() {

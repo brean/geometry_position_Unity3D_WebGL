@@ -6,7 +6,9 @@ import { Geometry } from '/imports/api/geometry/geometry.js';
 import './main.html';
 
 Template.visualization.onCreated(function() {
-  Meteor.subscribe('geometry');
+  Meteor.subscribe('cube');
+  Meteor.subscribe('sphere');
+  Meteor.subscribe('monkey');
   this.vis = new ReactiveVar();
 });
 
@@ -21,7 +23,6 @@ Template.visualization.onRendered(function() {
     setTimeout(function() {
       $('canvas').height($( window ).height());
       $('canvas').width($( window ).width());
-      vis.onWindowResize();
     }, 250);
   });
   vis.addEventListener('positionChange', onPositionChange.bind(vis));
@@ -45,7 +46,13 @@ Template.visualization.helpers({
 });
 
 Template.visualization.events({
-  'click button'(event, instance) {
+  'click button#cube'(event, instance) {
     Meteor.call('geometry.add');
   },
+  'click button#sphere'(event, instance) {
+    Meteor.call('geometry.add', 'sphere');
+  },
+  'click button#monkey'(event, instance) {
+    Meteor.call('geometry.add', 'monkey');
+  }
 });

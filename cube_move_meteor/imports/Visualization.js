@@ -211,26 +211,63 @@ class Visualization extends THREE.EventDispatcher {
     }
   }
 
-  addGeometry(docId, newDoc) {
-    let geometry = new THREE.BoxGeometry( 1, 1, 1 );
-
-		let material = new THREE.MeshLambertMaterial( {
+  genMaterial() {
+    return new THREE.MeshLambertMaterial( {
       transparent: true,
       opacity: 0.7,
       color: 0x2194ce
     } );
+  }
 
-		let cube = new THREE.Mesh( geometry, material );
+  addBasicGeometry(docId, newDoc, geometry) {
+    this.addObject(
+      docId,
+      newDoc,
+      new THREE.Mesh( geometry, this.genMaterial() )
+    );
+  }
 
-    cube.docId = docId;
+  addObject(docId, newDoc, obj) {
 
-    this.updateGeomPosition(cube, newDoc);
+    obj.docId = docId;
 
-		this.scene.add( cube );
+    this.updateGeomPosition(obj, newDoc);
 
-    this.geometries.push(cube);
+		this.scene.add( obj );
+
+    this.geometries.push(obj);
 
     this.controls.update();
+  }
+
+  loadObj(docId, newDoc, model) {
+    let self = this;
+    let manager = new THREE.LoadingManager();
+    let mtlLoader = new THREE.MTLLoader( manager );
+    // we will overwrite the material so we don't need to load the mtl file
+    mtlLoader.load( '/models/' + model + '.mtl', function( materials ) {
+      materials.preload();
+      let objLoader = new THREE.OBJLoader( manager );
+      objLoader.setMaterials(materials);
+      objLoader.load( '/models/' + model + '.obj', function ( object ) {
+        object.children[0].material = self.genMaterial();
+        self.addObject(docId, newDoc, object.children[0]);
+      });
+    });
+  }
+
+  addGeometry(docId, newDoc) {
+    switch (newDoc.type) {
+      case 'cube':
+        this.addBasicGeometry(docId, newDoc, new THREE.BoxGeometry( 1, 1, 1 ))
+        break;
+      case 'sphere':
+        this.addBasicGeometry(docId, newDoc, new THREE.SphereGeometry( .5, 32, 32 ))
+        break;
+      case 'monkey':
+        this.loadObj(docId, newDoc, 'suzanne');
+        break;
+    }
   }
 
   removeGeometry(docId) {
