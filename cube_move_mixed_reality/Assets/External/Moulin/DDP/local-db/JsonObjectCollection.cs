@@ -48,14 +48,14 @@ namespace Moulin.DDP {
 		}
 
 		public void Add(string docId, JSONObject fields) {
-            OnAdded?.Invoke(docId, fields);
-            documents.Add(docId, fields);
+			OnAdded?.Invoke(docId, fields);
+			documents.Add(docId, fields);
 		}
 
 		public void Change(string docId, JSONObject fields, JSONObject cleared) {
-            OnChanged?.Invoke(docId, fields, cleared);
+			OnChanged?.Invoke(docId, fields, cleared);
 
-            JSONObject document = documents[docId];
+			JSONObject document = documents[docId];
 
 			if (fields != null) {
 				foreach (string field in fields.keys) {
@@ -71,8 +71,8 @@ namespace Moulin.DDP {
 		}
 
 		public void Remove(string docId) {
-            OnRemoved?.Invoke(docId);
-            documents.Remove(docId);
+			OnRemoved?.Invoke(docId);
+			documents.Remove(docId);
 		}
 
 		public void AddBefore(string docId, JSONObject fields, string before) {
