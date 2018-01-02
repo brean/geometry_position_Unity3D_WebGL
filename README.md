@@ -7,7 +7,7 @@ Note that when you move it it will also move in your Application or Unity Editor
 
 (TODO: video here)
 
-This is an example application for the [Unity 3D DDP client](https://github.com/green-coder/unity3d-ddp-client) (dev branch).
+This is an example application for the [Unity 3D DDP client](https://github.com/green-coder/unity3d-ddp-client/tree/dev) (dev branch).
 
 > Note that this needs Unity 2017 or newer for .Net 4.6 
 
