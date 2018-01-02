@@ -257,27 +257,27 @@ namespace Moulin.DDP
 			    }
 
 			    case MessageType.REMOVED: {
-                        OnRemoved?.Invoke(
-                            message[Field.COLLECTION].str,
-                            message[Field.ID].str);
-                        break;
+                    OnRemoved?.Invoke(
+                        message[Field.COLLECTION].str,
+                        message[Field.ID].str);
+                    break;
 			    }
 
 			    case MessageType.READY: {
-                        lock (subscriptions)
-                        {
-                            string[] subscriptionIds = ToStringArray(message[Field.SUBS]);
+                    lock (subscriptions)
+                    {
+                        string[] subscriptionIds = ToStringArray(message[Field.SUBS]);
 
-                            foreach (string subscriptionId in subscriptionIds)
+                        foreach (string subscriptionId in subscriptionIds)
+                        {
+                            Subscription subscription = subscriptions[subscriptionId];
+                            if (subscription != null)
                             {
-                                Subscription subscription = subscriptions[subscriptionId];
-                                if (subscription != null)
-                                {
-                                    subscription.isReady = true;
-                                    subscription.OnReady?.Invoke(subscription);
-                                }
+                                subscription.isReady = true;
+                                subscription.OnReady?.Invoke(subscription);
                             }
                         }
+                    }
 				    break;
 			    }
 
@@ -291,10 +291,10 @@ namespace Moulin.DDP
 			    }
 
 			    case MessageType.MOVED_BEFORE: {
-                OnMovedBefore?.Invoke(
-                    message[Field.COLLECTION].str,
-                    message[Field.ID].str,
-                    message[Field.BEFORE].str);
+                    OnMovedBefore?.Invoke(
+                        message[Field.COLLECTION].str,
+                        message[Field.ID].str,
+                        message[Field.BEFORE].str);
                     break;
 				}
 

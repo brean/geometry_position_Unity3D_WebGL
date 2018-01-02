@@ -36,7 +36,6 @@ public class GeometryHandler : MonoBehaviour {
         {
             SetupGeometryCollection();
         }
-
     }
 
     private void SetupGeometryCollection()
