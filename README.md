@@ -1,4 +1,9 @@
-Create and move a cube, a sphere or a [monkey](https://en.wikipedia.org/wiki/Blender_(software)#Suzanne) in your browser using WebGL and it moves in the Unity Player, Unity Editor or Windows Standalone and UWP (including Hololens or Mixed Reality Hardware).
+Create and move a cube, a sphere or a [monkey](https://en.wikipedia.org/wiki/Blender_(software)#Suzanne) in your browser using WebGL (based on [three.js](https://github.com/mrdoob/three.js/)) and it moves in the Unity Player, Unity Editor or Windows Standalone and UWP (including Hololens or Mixed Reality Hardware).
+
+This screenshot shows the Web-Version. Just start the Server with the `meteor` command. When it is loaded you can create new objects using the buttons in the top-right. Click the object to show the manipulation tool. With this tool you can use the arrows to position the object.
+![Screenshot](move_geometry_objects_screenshot.png?raw=true "Screenshot showing the Web-Version")
+
+Note that when you move it it will also move in your Application or Unity Editor. The Editor needs to have the focus to update the viewport. So if you don't see any changes click the Editor or App.
 
 (TODO: video here)
 
